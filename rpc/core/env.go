@@ -1,20 +1,21 @@
 package core
 
 import (
+	"encoding/base64"
 	"fmt"
 	"time"
 
 	cfg "github.com/tendermint/tendermint/config"
-	"github.com/tendermint/tendermint/consensus"
 	"github.com/tendermint/tendermint/crypto"
+	"github.com/tendermint/tendermint/internal/consensus"
+	mempl "github.com/tendermint/tendermint/internal/mempool"
+	"github.com/tendermint/tendermint/internal/p2p"
+	tmjson "github.com/tendermint/tendermint/libs/json"
 	"github.com/tendermint/tendermint/libs/log"
-	mempl "github.com/tendermint/tendermint/mempool"
-	"github.com/tendermint/tendermint/p2p"
 	"github.com/tendermint/tendermint/proxy"
 	ctypes "github.com/tendermint/tendermint/rpc/core/types"
 	sm "github.com/tendermint/tendermint/state"
 	"github.com/tendermint/tendermint/state/indexer"
-	"github.com/tendermint/tendermint/state/txindex"
 	"github.com/tendermint/tendermint/types"
 )
 
@@ -26,18 +27,11 @@ const (
 	// SubscribeTimeout is the maximum time we wait to subscribe for an event.
 	// must be less than the server's write timeout (see rpcserver.DefaultConfig)
 	SubscribeTimeout = 5 * time.Second
-)
 
-var (
-	// set by Node
-	env *Environment
+	// genesisChunkSize is the maximum size, in bytes, of each
+	// chunk in the genesis structure for the chunked API
+	genesisChunkSize = 16 * 1024 * 1024 // 16
 )
-
-// SetEnvironment sets up the given Environment.
-// It will race if multiple Node call SetEnvironment.
-func SetEnvironment(e *Environment) {
-	env = e
-}
 
 //----------------------------------------------
 // These interfaces are used by RPC and must be thread safe
@@ -53,7 +47,7 @@ type Consensus interface {
 type transport interface {
 	Listeners() []string
 	IsListening() bool
-	NodeInfo() p2p.NodeInfo
+	NodeInfo() types.NodeInfo
 }
 
 type peers interface {
@@ -83,15 +77,18 @@ type Environment struct {
 	// objects
 	PubKey           crypto.PubKey
 	GenDoc           *types.GenesisDoc // cache the genesis structure
-	TxIndexer        txindex.TxIndexer
-	BlockIndexer     indexer.BlockIndexer
+	EventSinks       []indexer.EventSink
 	ConsensusReactor *consensus.Reactor
 	EventBus         *types.EventBus // thread safe
 	Mempool          mempl.Mempool
+	FastSyncReactor  consensus.FastSyncReactor
 
 	Logger log.Logger
 
 	Config cfg.RPCConfig
+
+	// cache of chunked genesis data.
+	genChunks []string
 }
 
 //----------------------------------------------
@@ -118,7 +115,7 @@ func validatePage(pagePtr *int, perPage, totalCount int) (int, error) {
 	return page, nil
 }
 
-func validatePerPage(perPagePtr *int) int {
+func (env *Environment) validatePerPage(perPagePtr *int) int {
 	if perPagePtr == nil { // no per_page parameter
 		return defaultPerPage
 	}
@@ -134,6 +131,35 @@ func validatePerPage(perPagePtr *int) int {
 	return perPage
 }
 
+// InitGenesisChunks configures the environment and should be called on service
+// startup.
+func (env *Environment) InitGenesisChunks() error {
+	if env.genChunks != nil {
+		return nil
+	}
+
+	if env.GenDoc == nil {
+		return nil
+	}
+
+	data, err := tmjson.Marshal(env.GenDoc)
+	if err != nil {
+		return err
+	}
+
+	for i := 0; i < len(data); i += genesisChunkSize {
+		end := i + genesisChunkSize
+
+		if end > len(data) {
+			end = len(data)
+		}
+
+		env.genChunks = append(env.genChunks, base64.StdEncoding.EncodeToString(data[i:end]))
+	}
+
+	return nil
+}
+
 func validateSkipCount(page, perPage int) int {
 	skipCount := (page - 1) * perPage
 	if skipCount < 0 {
@@ -144,7 +170,7 @@ func validateSkipCount(page, perPage int) int {
 }
 
 // latestHeight can be either latest committed or uncommitted (+1) height.
-func getHeight(latestHeight int64, heightPtr *int64) (int64, error) {
+func (env *Environment) getHeight(latestHeight int64, heightPtr *int64) (int64, error) {
 	if heightPtr != nil {
 		height := *heightPtr
 		if height <= 0 {
@@ -163,7 +189,7 @@ func getHeight(latestHeight int64, heightPtr *int64) (int64, error) {
 	return latestHeight, nil
 }
 
-func latestUncommittedHeight() int64 {
+func (env *Environment) latestUncommittedHeight() int64 {
 	nodeIsSyncing := env.ConsensusReactor.WaitSync()
 	if nodeIsSyncing {
 		return env.BlockStore.Height()

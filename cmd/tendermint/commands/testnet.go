@@ -14,10 +14,9 @@ import (
 	cfg "github.com/tendermint/tendermint/config"
 	"github.com/tendermint/tendermint/libs/bytes"
 	tmrand "github.com/tendermint/tendermint/libs/rand"
-	"github.com/tendermint/tendermint/p2p"
+	tmtime "github.com/tendermint/tendermint/libs/time"
 	"github.com/tendermint/tendermint/privval"
 	"github.com/tendermint/tendermint/types"
-	tmtime "github.com/tendermint/tendermint/types/time"
 )
 
 var (
@@ -144,8 +143,8 @@ func testnetFiles(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		pvKeyFile := filepath.Join(nodeDir, config.BaseConfig.PrivValidatorKey)
-		pvStateFile := filepath.Join(nodeDir, config.BaseConfig.PrivValidatorState)
+		pvKeyFile := filepath.Join(nodeDir, config.PrivValidator.Key)
+		pvStateFile := filepath.Join(nodeDir, config.PrivValidator.State)
 		pv, err := privval.LoadFilePV(pvKeyFile, pvStateFile)
 		if err != nil {
 			return err
@@ -274,11 +273,11 @@ func persistentPeersArray(config *cfg.Config) ([]string, error) {
 	for i := 0; i < nValidators+nNonValidators; i++ {
 		nodeDir := filepath.Join(outputDir, fmt.Sprintf("%s%d", nodeDirPrefix, i))
 		config.SetRoot(nodeDir)
-		nodeKey, err := p2p.LoadNodeKey(config.NodeKeyFile())
+		nodeKey, err := config.LoadNodeKeyID()
 		if err != nil {
 			return []string{}, err
 		}
-		peers[i] = p2p.IDAddressString(nodeKey.ID, fmt.Sprintf("%s:%d", hostnameOrIP(i), p2pPort))
+		peers[i] = nodeKey.AddressString(fmt.Sprintf("%s:%d", hostnameOrIP(i), p2pPort))
 	}
 	return peers, nil
 }

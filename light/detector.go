@@ -78,7 +78,10 @@ func (c *Client) detectDivergence(ctx context.Context, primaryTrace []*types.Lig
 				"witness", c.witnesses[e.WitnessIndex], "err", err)
 			witnessesToRemove = append(witnessesToRemove, e.WitnessIndex)
 		default:
-			c.logger.Debug("error in light block request to witness", "err", err)
+			if errors.Is(e, context.Canceled) || errors.Is(e, context.DeadlineExceeded) {
+				return e
+			}
+			c.logger.Info("error in light block request to witness", "err", err)
 		}
 	}
 
@@ -115,7 +118,7 @@ func (c *Client) compareNewHeaderWithWitness(ctx context.Context, errc chan erro
 
 	// the witness hasn't been helpful in comparing headers, we mark the response and continue
 	// comparing with the rest of the witnesses
-	case provider.ErrNoResponse, provider.ErrLightBlockNotFound:
+	case provider.ErrNoResponse, provider.ErrLightBlockNotFound, context.DeadlineExceeded, context.Canceled:
 		errc <- err
 		return
 
@@ -183,7 +186,7 @@ func (c *Client) compareNewHeaderWithWitness(ctx context.Context, errc chan erro
 		return
 	}
 
-	if !bytes.Equal(h.Hash(), lightBlock.Hash()) {
+	if !bytes.Equal(h.Header.Hash(), lightBlock.Header.Hash()) {
 		errc <- errConflictingHeaders{Block: lightBlock, WitnessIndex: witnessIndex}
 	}
 
@@ -394,9 +397,10 @@ func (c *Client) getTargetBlockOrLatest(
 // all the fields such that it is ready to be sent to a full node.
 func newLightClientAttackEvidence(conflicted, trusted, common *types.LightBlock) *types.LightClientAttackEvidence {
 	ev := &types.LightClientAttackEvidence{ConflictingBlock: conflicted}
+	// We use the common height to indicate the form of the attack.
 	// if this is an equivocation or amnesia attack, i.e. the validator sets are the same, then we
-	// return the height of the conflicting block else if it is a lunatic attack and the validator sets
-	// are not the same then we send the height of the common header.
+	// return the height of the conflicting block as the common height. If instead it is a lunatic
+	// attack and the validator sets are not the same then we send the height of the common header.
 	if ev.ConflictingHeaderIsInvalid(trusted.Header) {
 		ev.CommonHeight = common.Height
 		ev.Timestamp = common.Time

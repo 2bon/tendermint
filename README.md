@@ -8,7 +8,7 @@ Or [Blockchain](<https://en.wikipedia.org/wiki/Blockchain_(database)>), for shor
 
 [![version](https://img.shields.io/github/tag/tendermint/tendermint.svg)](https://github.com/tendermint/tendermint/releases/latest)
 [![API Reference](https://camo.githubusercontent.com/915b7be44ada53c290eb157634330494ebe3e30a/68747470733a2f2f676f646f632e6f72672f6769746875622e636f6d2f676f6c616e672f6764646f3f7374617475732e737667)](https://pkg.go.dev/github.com/tendermint/tendermint)
-[![Go version](https://img.shields.io/badge/go-1.15-blue.svg)](https://github.com/moovweb/gvm)
+[![Go version](https://img.shields.io/badge/go-1.16-blue.svg)](https://github.com/moovweb/gvm)
 [![Discord chat](https://img.shields.io/discord/669268347736686612.svg)](https://discord.gg/vcExX9T)
 [![license](https://img.shields.io/github/license/tendermint/tendermint.svg)](https://github.com/tendermint/tendermint/blob/master/LICENSE)
 [![tendermint/tendermint](https://tokei.rs/b1/github/tendermint/tendermint?category=lines)](https://github.com/tendermint/tendermint)
@@ -18,8 +18,7 @@ Or [Blockchain](<https://en.wikipedia.org/wiki/Blockchain_(database)>), for shor
 |--------|--------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------|
 | master | ![Tests](https://github.com/tendermint/tendermint/workflows/Tests/badge.svg?branch=master) | [![codecov](https://codecov.io/gh/tendermint/tendermint/branch/master/graph/badge.svg)](https://codecov.io/gh/tendermint/tendermint) | ![Lint](https://github.com/tendermint/tendermint/workflows/Lint/badge.svg) |
 
-Tendermint Core is Byzantine Fault Tolerant (BFT) middleware that takes a state transition machine - written in any programming language -
-and securely replicates it on many machines.
+Tendermint Core is a Byzantine Fault Tolerant (BFT) middleware that takes a state transition machine - written in any programming language - and securely replicates it on many machines.
 
 For protocol details, see [the specification](https://github.com/tendermint/spec).
 
@@ -30,9 +29,7 @@ see our recent paper, "[The latest gossip on BFT consensus](https://arxiv.org/ab
 
 Please do not depend on master as your production branch. Use [releases](https://github.com/tendermint/tendermint/releases) instead.
 
-Tendermint is being used in production in both private and public environments,
-most notably the blockchains of the [Cosmos Network](https://cosmos.network/).
-However, we are still making breaking changes to the protocol and the APIs and have not yet released v1.0.
+Tendermint has been in the production of private and public environments, most notably the blockchains of the Cosmos Network. we haven't released v1.0 yet since we are making breaking changes to the protocol and the APIs. 
 See below for more details about [versioning](#versioning).
 
 In any case, if you intend to run Tendermint in production, we're happy to help. You can
@@ -51,7 +48,7 @@ to notify you of vulnerabilities and fixes in Tendermint Core. You can subscribe
 
 | Requirement | Notes            |
 |-------------|------------------|
-| Go version  | Go1.15 or higher |
+| Go version  | Go1.16 or higher |
 
 ## Documentation
 

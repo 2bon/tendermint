@@ -12,7 +12,7 @@ else
 VERSION := $(shell git describe)
 endif
 
-LD_FLAGS = -X github.com/tendermint/tendermint/version.TMCoreSemVer=$(VERSION)
+LD_FLAGS = -X github.com/tendermint/tendermint/version.TMVersion=$(VERSION)
 BUILD_FLAGS = -mod=readonly -ldflags "$(LD_FLAGS)"
 HTTPS_GIT := https://github.com/tendermint/tendermint.git
 DOCKER_BUF := docker run -v $(shell pwd):/workspace --workdir /workspace bufbuild/buf
@@ -202,7 +202,7 @@ format:
 
 lint:
 	@echo "--> Running linter"
-	@golangci-lint run
+	go run github.com/golangci/golangci-lint/cmd/golangci-lint run
 .PHONY: lint
 
 DESTINATION = ./index.html.md
@@ -230,6 +230,19 @@ build-docker: build-linux
 	docker build --label=tendermint --tag="tendermint/tendermint" DOCKER
 	rm -rf DOCKER/tendermint
 .PHONY: build-docker
+
+
+###############################################################################
+###                       Testing 											###
+###############################################################################
+
+mockery:
+	go generate -run="mockery" ./...
+.PHONY: mockery
+
+test:
+	go test ./...
+.PHONY: test
 
 ###############################################################################
 ###                       Local testnet using docker                        ###

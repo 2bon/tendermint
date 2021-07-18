@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	logger = log.NewTMLogger(log.NewSyncWriter(os.Stdout))
+	logger = log.MustNewDefaultLogger(log.LogFormatPlain, log.LogLevelInfo, false)
 )
 
 func main() {
@@ -61,9 +61,6 @@ func NewCLI() *CLI {
 			defer loadCancel()
 			go func() {
 				err := Load(ctx, cli.testnet, 1)
-				if err != nil {
-					logger.Error(fmt.Sprintf("Transaction load failed: %v", err.Error()))
-				}
 				chLoadResult <- err
 			}()
 
@@ -95,7 +92,7 @@ func NewCLI() *CLI {
 
 			loadCancel()
 			if err := <-chLoadResult; err != nil {
-				return err
+				return fmt.Errorf("transaction load failed: %w", err)
 			}
 			if err := Wait(cli.testnet, 5); err != nil { // wait for network to settle before tests
 				return err
@@ -172,6 +169,15 @@ func NewCLI() *CLI {
 	})
 
 	cli.root.AddCommand(&cobra.Command{
+		Use:   "resume",
+		Short: "Resumes the Docker testnet",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			logger.Info("Resuming testnet")
+			return execCompose(cli.testnet.Dir, "up")
+		},
+	})
+
+	cli.root.AddCommand(&cobra.Command{
 		Use:   "load [multiplier]",
 		Args:  cobra.MaximumNArgs(1),
 		Short: "Generates transaction load until the command is canceled",
@@ -229,10 +235,7 @@ func NewCLI() *CLI {
 		Example: "runner logs validator03",
 		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 1 {
-				return execComposeVerbose(cli.testnet.Dir, "logs", args[0])
-			}
-			return execComposeVerbose(cli.testnet.Dir, "logs")
+			return execComposeVerbose(cli.testnet.Dir, append([]string{"logs", "--no-color"}, args...)...)
 		},
 	})
 
@@ -273,9 +276,6 @@ Does not run any perbutations.
 			defer loadCancel()
 			go func() {
 				err := Load(ctx, cli.testnet, 1)
-				if err != nil {
-					logger.Error(fmt.Sprintf("Transaction load failed: %v", err.Error()))
-				}
 				chLoadResult <- err
 			}()
 

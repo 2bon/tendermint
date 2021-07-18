@@ -7,8 +7,8 @@ import (
 
 	abci "github.com/tendermint/tendermint/abci/types"
 	"github.com/tendermint/tendermint/crypto"
+	"github.com/tendermint/tendermint/internal/p2p"
 	"github.com/tendermint/tendermint/libs/bytes"
-	"github.com/tendermint/tendermint/p2p"
 	tmproto "github.com/tendermint/tendermint/proto/tendermint/types"
 	"github.com/tendermint/tendermint/types"
 )
@@ -36,6 +36,16 @@ type ResultGenesis struct {
 	Genesis *types.GenesisDoc `json:"genesis"`
 }
 
+// ResultGenesisChunk is the output format for the chunked/paginated
+// interface. These chunks are produced by converting the genesis
+// document to JSON and then splitting the resulting payload into
+// 16 megabyte blocks and then base64 encoding each block.
+type ResultGenesisChunk struct {
+	ChunkNumber int    `json:"chunk"`
+	TotalChunks int    `json:"total"`
+	Data        string `json:"data"`
+}
+
 // Single block (with meta)
 type ResultBlock struct {
 	BlockID types.BlockID `json:"block_id"`
@@ -52,6 +62,7 @@ type ResultCommit struct {
 type ResultBlockResults struct {
 	Height                int64                     `json:"height"`
 	TxsResults            []*abci.ResponseDeliverTx `json:"txs_results"`
+	TotalGasUsed          int64                     `json:"total_gas_used"`
 	BeginBlockEvents      []abci.Event              `json:"begin_block_events"`
 	EndBlockEvents        []abci.Event              `json:"end_block_events"`
 	ValidatorUpdates      []abci.ValidatorUpdate    `json:"validator_updates"`
@@ -84,7 +95,12 @@ type SyncInfo struct {
 	EarliestBlockHeight int64          `json:"earliest_block_height"`
 	EarliestBlockTime   time.Time      `json:"earliest_block_time"`
 
+	MaxPeerBlockHeight int64 `json:"max_peer_block_height"`
+
 	CatchingUp bool `json:"catching_up"`
+
+	TotalSyncedTime time.Duration `json:"total_synced_time"`
+	RemainingTime   time.Duration `json:"remaining_time"`
 }
 
 // Info about the node's validator
@@ -96,9 +112,9 @@ type ValidatorInfo struct {
 
 // Node Status
 type ResultStatus struct {
-	NodeInfo      p2p.NodeInfo  `json:"node_info"`
-	SyncInfo      SyncInfo      `json:"sync_info"`
-	ValidatorInfo ValidatorInfo `json:"validator_info"`
+	NodeInfo      types.NodeInfo `json:"node_info"`
+	SyncInfo      SyncInfo       `json:"sync_info"`
+	ValidatorInfo ValidatorInfo  `json:"validator_info"`
 }
 
 // Is TxIndexing enabled
@@ -129,7 +145,7 @@ type ResultDialPeers struct {
 
 // A peer
 type Peer struct {
-	NodeInfo         p2p.NodeInfo         `json:"node_info"`
+	NodeInfo         types.NodeInfo       `json:"node_info"`
 	IsOutbound       bool                 `json:"is_outbound"`
 	ConnectionStatus p2p.ConnectionStatus `json:"connection_status"`
 	RemoteIP         string               `json:"remote_ip"`
@@ -248,7 +264,8 @@ type (
 
 // Event data from a subscription
 type ResultEvent struct {
-	Query  string              `json:"query"`
-	Data   types.TMEventData   `json:"data"`
-	Events map[string][]string `json:"events"`
+	SubscriptionID string            `json:"subscription_id"`
+	Query          string            `json:"query"`
+	Data           types.TMEventData `json:"data"`
+	Events         []abci.Event      `json:"events"`
 }

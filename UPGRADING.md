@@ -7,10 +7,13 @@ This guide provides instructions for upgrading to specific versions of Tendermin
 ### ABCI Changes
 
 * Added `AbciVersion` to `RequestInfo`. Applications should check that the ABCI version they expect is being used in order to avoid unimplemented changes errors.
-
 * The method `SetOption` has been removed from the ABCI.Client interface. This feature was used in the early ABCI implementation's.
-
 * Messages are written to a byte stream using uin64 length delimiters instead of int64.
+* When mempool `v1` is enabled, transactions broadcasted via `sync` mode may return a successful
+  response with a transaction hash indicating that the transaction was successfully inserted into
+  the mempool. While this is true for `v0`, the `v1` mempool reactor may at a later point in time
+  evict or even drop this transaction after a hash has been returned. Thus, the user or client must
+  query for that transaction to check if it is still in the mempool.
 
 ### Config Changes
 
@@ -21,6 +24,15 @@ This guide provides instructions for upgrading to specific versions of Tendermin
 
 * Added `--mode` flag and `mode` config variable on `config.toml` for setting Mode of the Node: `full` | `validator` | `seed` (default: `full`)
   [ADR-52](https://github.com/tendermint/tendermint/blob/master/docs/architecture/adr-052-tendermint-mode.md)
+  
+* `BootstrapPeers` has been added as part of the new p2p stack. This will eventually replace
+  `Seeds`. Bootstrap peers are connected with on startup if needed for peer discovery. Unlike
+  persistent peers, there's no gaurantee that the node will remain connected with these peers. 
+
+- configuration values starting with `priv-validator-` have moved to the new
+  `priv-validator` section, without the `priv-validator-` prefix.
+
+* Fast Sync v2 has been deprecated, please use v0 to sync a node.
 
 ### CLI Changes
 
@@ -37,13 +49,44 @@ This guide provides instructions for upgrading to specific versions of Tendermin
 
 * CLI commands and flags are all now hyphen-case instead of snake_case.
   Make sure to adjust any scripts that calls a cli command with snake_casing
+
+### API Changes
+
+The p2p layer was reimplemented as part of the 0.35 release cycle, and
+all reactors were refactored. As part of that work these
+implementations moved into the `internal` package and are no longer
+considered part of the public Go API of tendermint. These packages
+are:
+
+- `p2p`
+- `mempool`
+- `consensus`
+- `statesync`
+- `blockchain`
+- `evidence`
+
+Accordingly, the space `node` package was changed to reduce access to
+tendermint internals: applications that use tendermint as a library
+will need to change to accommodate these changes. Most notably:
+
+- The `Node` type has become internal, and all constructors return a
+  `service.Service` implementation.
+
+- The `node.DefaultNewNode` and `node.NewNode` constructors are no
+  longer exported and have been replaced with `node.New` and
+  `node.NewDefault` which provide more functional interfaces.
+
+### RPC changes
+
+Mark gRPC in the RPC layer as deprecated and to be removed in 0.36.
+
 ## v0.34.0
 
 **Upgrading to Tendermint 0.34 requires a blockchain restart.**
 This release is not compatible with previous blockchains due to changes to
 the encoding format (see "Protocol Buffers," below) and the block header (see "Blockchain Protocol").
 
-Note also that Tendermint 0.34 also requires Go 1.15 or higher.
+Note also that Tendermint 0.34 also requires Go 1.16 or higher.
 
 ### ABCI Changes
 

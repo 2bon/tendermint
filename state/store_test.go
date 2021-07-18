@@ -14,6 +14,7 @@ import (
 	cfg "github.com/tendermint/tendermint/config"
 	"github.com/tendermint/tendermint/crypto"
 	"github.com/tendermint/tendermint/crypto/ed25519"
+	"github.com/tendermint/tendermint/internal/test/factory"
 	tmrand "github.com/tendermint/tendermint/libs/rand"
 	tmstate "github.com/tendermint/tendermint/proto/tendermint/state"
 	sm "github.com/tendermint/tendermint/state"
@@ -28,9 +29,9 @@ const (
 func TestStoreBootstrap(t *testing.T) {
 	stateDB := dbm.NewMemDB()
 	stateStore := sm.NewStore(stateDB)
-	val, _ := types.RandValidator(true, 10)
-	val2, _ := types.RandValidator(true, 10)
-	val3, _ := types.RandValidator(true, 10)
+	val, _ := factory.RandValidator(true, 10)
+	val2, _ := factory.RandValidator(true, 10)
+	val3, _ := factory.RandValidator(true, 10)
 	vals := types.NewValidatorSet([]*types.Validator{val, val2, val3})
 	bootstrapState := makeRandomStateFromValidatorSet(vals, 100, 100)
 	err := stateStore.Bootstrap(bootstrapState)
@@ -54,9 +55,9 @@ func TestStoreBootstrap(t *testing.T) {
 func TestStoreLoadValidators(t *testing.T) {
 	stateDB := dbm.NewMemDB()
 	stateStore := sm.NewStore(stateDB)
-	val, _ := types.RandValidator(true, 10)
-	val2, _ := types.RandValidator(true, 10)
-	val3, _ := types.RandValidator(true, 10)
+	val, _ := factory.RandValidator(true, 10)
+	val2, _ := factory.RandValidator(true, 10)
+	val3, _ := factory.RandValidator(true, 10)
 	vals := types.NewValidatorSet([]*types.Validator{val, val2, val3})
 
 	// 1) LoadValidators loads validators using a height where they were last changed
@@ -107,7 +108,7 @@ func BenchmarkLoadValidators(b *testing.B) {
 	stateDB, err := dbm.NewDB("state", dbType, config.DBDir())
 	require.NoError(b, err)
 	stateStore := sm.NewStore(stateDB)
-	state, err := stateStore.LoadFromDBOrGenesisFile(config.GenesisFile())
+	state, err := sm.MakeGenesisStateFromFile(config.GenesisFile())
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -116,6 +117,8 @@ func BenchmarkLoadValidators(b *testing.B) {
 	state.NextValidators = state.Validators.CopyIncrementProposerPriority(1)
 	err = stateStore.Save(state)
 	require.NoError(b, err)
+
+	b.ResetTimer()
 
 	for i := 10; i < 10000000000; i *= 10 { // 10, 100, 1000, ...
 		i := i

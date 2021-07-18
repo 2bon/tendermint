@@ -11,9 +11,9 @@ import (
 )
 
 // Status returns Tendermint status including node info, pubkey, latest block
-// hash, app hash, block height and time.
+// hash, app hash, block height, current max peer block height, and time.
 // More: https://docs.tendermint.com/master/rpc/#/Info/status
-func Status(ctx *rpctypes.Context) (*ctypes.ResultStatus, error) {
+func (env *Environment) Status(ctx *rpctypes.Context) (*ctypes.ResultStatus, error) {
 	var (
 		earliestBlockHeight   int64
 		earliestBlockHash     tmbytes.HexBytes
@@ -47,7 +47,7 @@ func Status(ctx *rpctypes.Context) (*ctypes.ResultStatus, error) {
 	// Return the very last voting power, not the voting power of this validator
 	// during the last block.
 	var votingPower int64
-	if val := validatorAtHeight(latestUncommittedHeight()); val != nil {
+	if val := env.validatorAtHeight(env.latestUncommittedHeight()); val != nil {
 		votingPower = val.VotingPower
 	}
 	validatorInfo := ctypes.ValidatorInfo{}
@@ -69,7 +69,10 @@ func Status(ctx *rpctypes.Context) (*ctypes.ResultStatus, error) {
 			EarliestAppHash:     earliestAppHash,
 			EarliestBlockHeight: earliestBlockHeight,
 			EarliestBlockTime:   time.Unix(0, earliestBlockTimeNano),
+			MaxPeerBlockHeight:  env.FastSyncReactor.GetMaxPeerBlockHeight(),
 			CatchingUp:          env.ConsensusReactor.WaitSync(),
+			TotalSyncedTime:     env.FastSyncReactor.GetTotalSyncedTime(),
+			RemainingTime:       env.FastSyncReactor.GetRemainingSyncTime(),
 		},
 		ValidatorInfo: validatorInfo,
 	}
@@ -77,7 +80,7 @@ func Status(ctx *rpctypes.Context) (*ctypes.ResultStatus, error) {
 	return result, nil
 }
 
-func validatorAtHeight(h int64) *types.Validator {
+func (env *Environment) validatorAtHeight(h int64) *types.Validator {
 	valsWithH, err := env.StateStore.LoadValidators(h)
 	if err != nil {
 		return nil

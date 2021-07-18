@@ -484,7 +484,7 @@ paths:
       tags:
         - Info
       description: |
-        Get Tendermint status including node info, pubkey, latest block hash, app hash, block height and time.
+        Get Tendermint status including node info, pubkey, latest block hash, app hash, block height, current max peer height, and time.
       responses:
         "200":
           description: Status of the node
@@ -537,8 +537,7 @@ paths:
             type: array
             items:
               type: string
-              example:
-                ["f9baeaa15fedf5e1ef7448dd60f46c01f1a9e9c4@1.2.3.4:26656"]
+              example: "f9baeaa15fedf5e1ef7448dd60f46c01f1a9e9c4@1.2.3.4:26656"
       responses:
         "200":
           description: Dialing seeds in progress. See /net_info for details
@@ -588,8 +587,7 @@ paths:
             type: array
             items:
               type: string
-              example:
-                ["f9baeaa15fedf5e1ef7448dd60f46c01f1a9e9c4@1.2.3.4:26656"]
+              example: "f9baeaa15fedf5e1ef7448dd60f46c01f1a9e9c4@1.2.3.4:26656"
       responses:
         "200":
           description: Dialing seeds in progress. See /net_info for details
@@ -724,7 +722,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BlockResultsResponse"
+                $ref: "#/components/schemas/BlockSearchResponse"
         "500":
           description: Error
           content:
@@ -1069,7 +1067,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BlockSearchResponse"
+                $ref: "#/components/schemas/BlockResultsResponse"
         "500":
           description: Error
           content:
@@ -1326,9 +1324,18 @@ components:
         earliest_block_time:
           type: string
           example: "2019-08-01T11:52:22.818762194Z"
+        max_peer_block_height:
+          type: string
+          example: "1262196"
         catching_up:
           type: boolean
           example: false
+        total_synced_time:
+          type: string
+          example: "1000000000"
+        remaining_time:
+          type: string
+          example: "0"
     ValidatorInfo:
       type: object
       properties:
@@ -1665,6 +1672,9 @@ components:
                   codespace:
                     type: string
                     example: "ibc"
+            total_gas_used:
+              type: string
+              example: "100"
             begin_block_events:
               type: array
               nullable: true
@@ -2746,6 +2756,33 @@ components:
         Log:
           type: string
           example: "Dialing seeds in progress. See /net_info for details"
+
+    BlockSearchResponse:
+      type: object
+      required:
+        - "jsonrpc"
+        - "id"
+        - "result"
+      properties:
+        jsonrpc:
+          type: string
+          example: "2.0"
+        id:
+          type: integer
+          example: 0
+        result:
+          required:
+            - "blocks"
+            - "total_count"
+          properties:
+            blocks:
+              type: array
+              items:
+                $ref: "#/components/schemas/BlockComplete"
+            total_count:
+              type: integer
+              example: 2
+          type: object
 
     ###### Reuseable types ######
 

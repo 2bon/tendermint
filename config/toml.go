@@ -137,27 +137,6 @@ log-format = "{{ .BaseConfig.LogFormat }}"
 # Path to the JSON file containing the initial validator set and other meta data
 genesis-file = "{{ js .BaseConfig.Genesis }}"
 
-# Path to the JSON file containing the private key to use as a validator in the consensus protocol
-priv-validator-key-file = "{{ js .BaseConfig.PrivValidatorKey }}"
-
-# Path to the JSON file containing the last sign state of a validator
-priv-validator-state-file = "{{ js .BaseConfig.PrivValidatorState }}"
-
-# TCP or UNIX socket address for Tendermint to listen on for
-# connections from an external PrivValidator process
-# when the listenAddr is prefixed with grpc instead of tcp it will use the gRPC Client
-priv-validator-laddr = "{{ .BaseConfig.PrivValidatorListenAddr }}"
-
-# Client certificate generated while creating needed files for secure connection.
-# If a remote validator address is provided but no certificate, the connection will be insecure
-priv-validator-client-certificate-file = "{{ js .BaseConfig.PrivValidatorClientCertificate }}"
-
-# Client key generated while creating certificates for secure connection
-priv-validator-client-key-file = "{{ js .BaseConfig.PrivValidatorClientKey }}"
-
-# Path Root Certificate Authority used to sign both client and server certificates
-priv-validator-certificate-authority = "{{ js .BaseConfig.PrivValidatorRootCA }}"
-
 # Path to the JSON file containing the private key to use for node authentication in the p2p protocol
 node-key-file = "{{ js .BaseConfig.NodeKey }}"
 
@@ -167,6 +146,34 @@ abci = "{{ .BaseConfig.ABCI }}"
 # If true, query the ABCI app on connecting to a new peer
 # so the app can decide if we should keep the connection or not
 filter-peers = {{ .BaseConfig.FilterPeers }}
+
+
+#######################################################
+###       Priv Validator Configuration              ###
+#######################################################
+[priv-validator]
+
+# Path to the JSON file containing the private key to use as a validator in the consensus protocol
+key-file = "{{ js .PrivValidator.Key }}"
+
+# Path to the JSON file containing the last sign state of a validator
+state-file = "{{ js .PrivValidator.State }}"
+
+# TCP or UNIX socket address for Tendermint to listen on for
+# connections from an external PrivValidator process
+# when the listenAddr is prefixed with grpc instead of tcp it will use the gRPC Client
+laddr = "{{ .PrivValidator.ListenAddr }}"
+
+# Client certificate generated while creating needed files for secure connection.
+# If a remote validator address is provided but no certificate, the connection will be insecure
+client-certificate-file = "{{ js .PrivValidator.ClientCertificate }}"
+
+# Client key generated while creating certificates for secure connection
+validator-client-key-file = "{{ js .PrivValidator.ClientKey }}"
+
+# Path Root Certificate Authority used to sign both client and server certificates
+certificate-authority = "{{ js .PrivValidator.RootCA }}"
+
 
 #######################################################################
 ###                 Advanced Configuration Options                  ###
@@ -193,6 +200,7 @@ cors-allowed-headers = [{{ range .RPC.CORSAllowedHeaders }}{{ printf "%q, " . }}
 
 # TCP or UNIX socket address for the gRPC server to listen on
 # NOTE: This server only supports /broadcast_tx_commit
+# Deprecated gRPC  in the RPC layer of Tendermint will be deprecated in 0.36.
 grpc-laddr = "{{ .RPC.GRPCListenAddress }}"
 
 # Maximum number of simultaneous connections.
@@ -202,6 +210,7 @@ grpc-laddr = "{{ .RPC.GRPCListenAddress }}"
 # 0 - unlimited.
 # Should be < {ulimit -Sn} - {MaxNumInboundPeers} - {MaxNumOutboundPeers} - {N of wal, db and other open files}
 # 1024 - 40 - 10 - 50 = 924 = ~900
+# Deprecated gRPC  in the RPC layer of Tendermint will be deprecated in 0.36.
 grpc-max-open-connections = {{ .RPC.GRPCMaxOpenConnections }}
 
 # Activate unsafe RPC commands like /dial-seeds and /unsafe-flush-mempool
@@ -273,11 +282,21 @@ laddr = "{{ .P2P.ListenAddress }}"
 # Address to advertise to peers for them to dial
 # If empty, will use the same port as the laddr,
 # and will introspect on the listener or use UPnP
-# to figure out the address.
+# to figure out the address. ip and port are required
+# example: 159.89.10.97:26656
 external-address = "{{ .P2P.ExternalAddress }}"
 
 # Comma separated list of seed nodes to connect to
+# We only use these if we can’t connect to peers in the addrbook
+# NOTE: not used by the new PEX reactor. Please use BootstrapPeers instead.
+# TODO: Remove once p2p refactor is complete
+# ref: https:#github.com/tendermint/tendermint/issues/5670
 seeds = "{{ .P2P.Seeds }}"
+
+# Comma separated list of peers to be added to the peer store
+# on startup. Either BootstrapPeers or PersistentPeers are
+# needed for peer discovery
+bootstrap-peers = "{{ .P2P.BootstrapPeers }}"
 
 # Comma separated list of nodes to keep persistent connections to
 persistent-peers = "{{ .P2P.PersistentPeers }}"
@@ -332,6 +351,7 @@ recv-rate = {{ .P2P.RecvRate }}
 pex = {{ .P2P.PexReactor }}
 
 # Comma separated list of peer IDs to keep private (will not be gossiped to other peers)
+# Warning: IPs will be exposed at /net_info, for more information https://github.com/tendermint/tendermint/issues/3055
 private-peer-ids = "{{ .P2P.PrivatePeerIDs }}"
 
 # Toggle to disable guard against peers connecting from the same ip.
@@ -346,9 +366,13 @@ dial-timeout = "{{ .P2P.DialTimeout }}"
 #######################################################
 [mempool]
 
+# Mempool version to use:
+#   1) "v0" - The legacy non-prioritized mempool reactor.
+#   2) "v1" (default) - The prioritized mempool reactor.
+version = "{{ .Mempool.Version }}"
+
 recheck = {{ .Mempool.Recheck }}
 broadcast = {{ .Mempool.Broadcast }}
-wal-dir = "{{ js .Mempool.WalPath }}"
 
 # Maximum number of transactions in the mempool
 size = {{ .Mempool.Size }}
@@ -404,6 +428,13 @@ discovery-time = "{{ .StateSync.DiscoveryTime }}"
 # Will create a new, randomly named directory within, and remove it when done.
 temp-dir = "{{ .StateSync.TempDir }}"
 
+# The timeout duration before re-requesting a chunk, possibly from a different
+# peer (default: 15 seconds).
+chunk-request-timeout = "{{ .StateSync.ChunkRequestTimeout }}"
+
+# The number of concurrent chunk and block fetchers to run (default: 4).
+fetchers = "{{ .StateSync.Fetchers }}"
+
 #######################################################
 ###       Fast Sync Configuration Connections       ###
 #######################################################
@@ -411,7 +442,7 @@ temp-dir = "{{ .StateSync.TempDir }}"
 
 # Fast Sync version to use:
 #   1) "v0" (default) - the legacy fast sync implementation
-#   2) "v2" - complete redesign of v0, optimized for testability & readability
+#   2) "v2" - DEPRECATED, please use v0
 version = "{{ .FastSync.Version }}"
 
 #######################################################
@@ -460,7 +491,8 @@ peer-query-maj23-sleep-duration = "{{ .Consensus.PeerQueryMaj23SleepDuration }}"
 #######################################################
 [tx-index]
 
-# What indexer to use for transactions
+# The backend database list to back the indexer.
+# If list contains null, meaning no indexer service will be used.
 #
 # The application will set which txs to index. In some cases a node operator will be able
 # to decide which txs to index based on configuration set in the application.
@@ -469,7 +501,12 @@ peer-query-maj23-sleep-duration = "{{ .Consensus.PeerQueryMaj23SleepDuration }}"
 #   1) "null"
 #   2) "kv" (default) - the simplest possible indexer, backed by key-value storage (defaults to levelDB; see DBBackend).
 # 		- When "kv" is chosen "tx.height" and "tx.hash" will always be indexed.
-indexer = "{{ .TxIndex.Indexer }}"
+#   3) "psql" - the indexer services backed by PostgreSQL.
+indexer = [{{ range $i, $e := .TxIndex.Indexer }}{{if $i}}, {{end}}{{ printf "%q" $e}}{{end}}]
+
+# The PostgreSQL connection configuration, the connection format:
+#   postgresql://<user>:<password>@<host>:<port>/<db>?<opts>
+psql-conn = "{{ .TxIndex.PsqlConn }}"
 
 #######################################################
 ###       Instrumentation Configuration Options     ###
@@ -514,10 +551,10 @@ func ResetTestRootWithChainID(testName string, chainID string) *Config {
 		panic(err)
 	}
 
-	baseConfig := DefaultBaseConfig()
-	genesisFilePath := filepath.Join(rootDir, baseConfig.Genesis)
-	privKeyFilePath := filepath.Join(rootDir, baseConfig.PrivValidatorKey)
-	privStateFilePath := filepath.Join(rootDir, baseConfig.PrivValidatorState)
+	conf := DefaultConfig()
+	genesisFilePath := filepath.Join(rootDir, conf.Genesis)
+	privKeyFilePath := filepath.Join(rootDir, conf.PrivValidator.Key)
+	privStateFilePath := filepath.Join(rootDir, conf.PrivValidator.State)
 
 	// Write default config file if missing.
 	writeDefaultConfigFileIfNone(rootDir)

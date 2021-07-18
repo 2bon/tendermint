@@ -16,7 +16,7 @@ var (
 	testnetCombinations = map[string][]interface{}{
 		"topology":      {"single", "quad", "large"},
 		"ipv6":          {false, true},
-		"useNewP2P":     {false, true, 2},
+		"p2p":           {NewP2PMode, LegacyP2PMode, HybridP2PMode},
 		"queueType":     {"priority"}, // "fifo", "wdrr"
 		"initialHeight": {0, 1000},
 		"initialState": {
@@ -28,12 +28,11 @@ var (
 	}
 
 	// The following specify randomly chosen values for testnet nodes.
-	nodeDatabases = uniformChoice{"goleveldb", "cleveldb", "rocksdb", "boltdb", "badgerdb"}
-	// FIXME: grpc disabled due to https://github.com/tendermint/tendermint/issues/5439
-	nodeABCIProtocols    = uniformChoice{"unix", "tcp", "builtin"} // "grpc"
+	nodeDatabases        = uniformChoice{"goleveldb", "cleveldb", "rocksdb", "boltdb", "badgerdb"}
+	nodeABCIProtocols    = uniformChoice{"unix", "tcp", "builtin", "grpc"}
 	nodePrivvalProtocols = uniformChoice{"file", "unix", "tcp", "grpc"}
 	// FIXME: v2 disabled due to flake
-	nodeFastSyncs         = uniformChoice{"", "v0"} // "v2"
+	nodeFastSyncs         = uniformChoice{"v0"} // "v2"
 	nodeStateSyncs        = uniformChoice{false, true}
 	nodePersistIntervals  = uniformChoice{0, 1, 5}
 	nodeSnapshotIntervals = uniformChoice{0, 3}
@@ -45,11 +44,19 @@ var (
 		"restart":    0.1,
 	}
 	evidence = uniformChoice{0, 1, 10}
+	txSize   = uniformChoice{1024, 10240} // either 1kb or 10kb
 )
 
 // Generate generates random testnets using the given RNG.
-func Generate(r *rand.Rand) ([]e2e.Manifest, error) {
+func Generate(r *rand.Rand, opts Options) ([]e2e.Manifest, error) {
 	manifests := []e2e.Manifest{}
+	switch opts.P2P {
+	case NewP2PMode, LegacyP2PMode, HybridP2PMode:
+		testnetCombinations["p2p"] = []interface{}{opts.P2P}
+	default:
+		testnetCombinations["p2p"] = []interface{}{NewP2PMode, LegacyP2PMode, HybridP2PMode}
+	}
+
 	for _, opt := range combinations(testnetCombinations) {
 		manifest, err := generateTestnet(r, opt)
 		if err != nil {
@@ -59,6 +66,20 @@ func Generate(r *rand.Rand) ([]e2e.Manifest, error) {
 	}
 	return manifests, nil
 }
+
+type Options struct {
+	P2P P2PMode
+}
+
+type P2PMode string
+
+const (
+	NewP2PMode    P2PMode = "new"
+	LegacyP2PMode P2PMode = "legacy"
+	HybridP2PMode P2PMode = "hybrid"
+	// mixed means that all combination are generated
+	MixedP2PMode P2PMode = "mixed"
+)
 
 // generateTestnet generates a single testnet with the given options.
 func generateTestnet(r *rand.Rand, opt map[string]interface{}) (e2e.Manifest, error) {
@@ -72,16 +93,21 @@ func generateTestnet(r *rand.Rand, opt map[string]interface{}) (e2e.Manifest, er
 		KeyType:          opt["keyType"].(string),
 		Evidence:         evidence.Choose(r).(int),
 		QueueType:        opt["queueType"].(string),
+		TxSize:           int64(txSize.Choose(r).(int)),
 	}
 
 	var p2pNodeFactor int
 
-	switch p2pInfo := opt["useNewP2P"].(type) {
-	case bool:
-		manifest.DisableLegacyP2P = p2pInfo
-	case int:
+	switch opt["p2p"].(P2PMode) {
+	case NewP2PMode:
+		manifest.DisableLegacyP2P = true
+	case LegacyP2PMode:
 		manifest.DisableLegacyP2P = false
-		p2pNodeFactor = p2pInfo
+	case HybridP2PMode:
+		manifest.DisableLegacyP2P = false
+		p2pNodeFactor = 2
+	default:
+		return manifest, fmt.Errorf("unknown p2p mode %s", opt["p2p"])
 	}
 
 	var numSeeds, numValidators, numFulls, numLightClients int
@@ -92,10 +118,10 @@ func generateTestnet(r *rand.Rand, opt map[string]interface{}) (e2e.Manifest, er
 		numValidators = 4
 	case "large":
 		// FIXME Networks are kept small since large ones use too much CPU.
-		numSeeds = r.Intn(3)
+		numSeeds = r.Intn(2)
 		numLightClients = r.Intn(3)
-		numValidators = 4 + r.Intn(7)
-		numFulls = r.Intn(5)
+		numValidators = 4 + r.Intn(4)
+		numFulls = r.Intn(4)
 	default:
 		return manifest, fmt.Errorf("unknown topology %q", opt["topology"])
 	}
@@ -103,7 +129,6 @@ func generateTestnet(r *rand.Rand, opt map[string]interface{}) (e2e.Manifest, er
 	// First we generate seed nodes, starting at the initial height.
 	for i := 1; i <= numSeeds; i++ {
 		node := generateNode(r, e2e.ModeSeed, 0, manifest.InitialHeight, false)
-		node.QueueType = manifest.QueueType
 
 		if p2pNodeFactor == 0 {
 			node.DisableLegacyP2P = manifest.DisableLegacyP2P
@@ -129,7 +154,6 @@ func generateTestnet(r *rand.Rand, opt map[string]interface{}) (e2e.Manifest, er
 		node := generateNode(
 			r, e2e.ModeValidator, startAt, manifest.InitialHeight, i <= 2)
 
-		node.QueueType = manifest.QueueType
 		if p2pNodeFactor == 0 {
 			node.DisableLegacyP2P = manifest.DisableLegacyP2P
 		} else if p2pNodeFactor%i == 0 {
@@ -165,7 +189,7 @@ func generateTestnet(r *rand.Rand, opt map[string]interface{}) (e2e.Manifest, er
 			nextStartAt += 5
 		}
 		node := generateNode(r, e2e.ModeFull, startAt, manifest.InitialHeight, false)
-		node.QueueType = manifest.QueueType
+
 		if p2pNodeFactor == 0 {
 			node.DisableLegacyP2P = manifest.DisableLegacyP2P
 		} else if p2pNodeFactor%i == 0 {
@@ -276,6 +300,10 @@ func generateNode(
 		if node.RetainBlocks < node.SnapshotInterval {
 			node.RetainBlocks = node.SnapshotInterval
 		}
+	}
+
+	if node.StateSync {
+		node.FastSync = "v0"
 	}
 
 	return &node

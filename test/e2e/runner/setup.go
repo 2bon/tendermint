@@ -20,7 +20,6 @@ import (
 
 	"github.com/tendermint/tendermint/config"
 	"github.com/tendermint/tendermint/crypto/ed25519"
-	"github.com/tendermint/tendermint/p2p"
 	"github.com/tendermint/tendermint/privval"
 	e2e "github.com/tendermint/tendermint/test/e2e/pkg"
 	"github.com/tendermint/tendermint/types"
@@ -106,7 +105,7 @@ func Setup(testnet *e2e.Testnet) error {
 			return err
 		}
 
-		err = (&p2p.NodeKey{PrivKey: node.NodeKey}).SaveAs(filepath.Join(nodeDir, "config", "node_key.json"))
+		err = (&types.NodeKey{PrivKey: node.NodeKey}).SaveAs(filepath.Join(nodeDir, "config", "node_key.json"))
 		if err != nil {
 			return err
 		}
@@ -266,22 +265,22 @@ func MakeConfig(node *e2e.Node) (*config.Config, error) {
 	// it's actually needed (e.g. for remote KMS or non-validators). We set up a dummy
 	// key here by default, and use the real key for actual validators that should use
 	// the file privval.
-	cfg.PrivValidatorListenAddr = ""
-	cfg.PrivValidatorKey = PrivvalDummyKeyFile
-	cfg.PrivValidatorState = PrivvalDummyStateFile
+	cfg.PrivValidator.ListenAddr = ""
+	cfg.PrivValidator.Key = PrivvalDummyKeyFile
+	cfg.PrivValidator.State = PrivvalDummyStateFile
 
 	switch node.Mode {
 	case e2e.ModeValidator:
 		switch node.PrivvalProtocol {
 		case e2e.ProtocolFile:
-			cfg.PrivValidatorKey = PrivvalKeyFile
-			cfg.PrivValidatorState = PrivvalStateFile
+			cfg.PrivValidator.Key = PrivvalKeyFile
+			cfg.PrivValidator.State = PrivvalStateFile
 		case e2e.ProtocolUNIX:
-			cfg.PrivValidatorListenAddr = PrivvalAddressUNIX
+			cfg.PrivValidator.ListenAddr = PrivvalAddressUNIX
 		case e2e.ProtocolTCP:
-			cfg.PrivValidatorListenAddr = PrivvalAddressTCP
+			cfg.PrivValidator.ListenAddr = PrivvalAddressTCP
 		case e2e.ProtocolGRPC:
-			cfg.PrivValidatorListenAddr = PrivvalAddressGRPC
+			cfg.PrivValidator.ListenAddr = PrivvalAddressGRPC
 		default:
 			return nil, fmt.Errorf("invalid privval protocol setting %q", node.PrivvalProtocol)
 		}
@@ -339,16 +338,17 @@ func MakeConfig(node *e2e.Node) (*config.Config, error) {
 // MakeAppConfig generates an ABCI application config for a node.
 func MakeAppConfig(node *e2e.Node) ([]byte, error) {
 	cfg := map[string]interface{}{
-		"chain_id":          node.Testnet.Name,
-		"dir":               "data/app",
-		"listen":            AppAddressUNIX,
-		"mode":              node.Mode,
-		"proxy_port":        node.ProxyPort,
-		"protocol":          "socket",
-		"persist_interval":  node.PersistInterval,
-		"snapshot_interval": node.SnapshotInterval,
-		"retain_blocks":     node.RetainBlocks,
-		"key_type":          node.PrivvalKey.Type(),
+		"chain_id":           node.Testnet.Name,
+		"dir":                "data/app",
+		"listen":             AppAddressUNIX,
+		"mode":               node.Mode,
+		"proxy_port":         node.ProxyPort,
+		"protocol":           "socket",
+		"persist_interval":   node.PersistInterval,
+		"snapshot_interval":  node.SnapshotInterval,
+		"retain_blocks":      node.RetainBlocks,
+		"key_type":           node.PrivvalKey.Type(),
+		"disable_legacy_p2p": node.DisableLegacyP2P,
 	}
 	switch node.ABCIProtocol {
 	case e2e.ProtocolUNIX:

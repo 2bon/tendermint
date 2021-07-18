@@ -64,6 +64,9 @@ type Manifest struct {
 
 	// QueueType describes the type of queue that the system uses internally
 	QueueType string `toml:"queue_type"`
+
+	// Number of bytes per tx. Default is 1kb (1024)
+	TxSize int64
 }
 
 // ManifestNode represents a node in a testnet manifest.
@@ -136,17 +139,13 @@ type ManifestNode struct {
 	// restart:    restarts the node, shutting it down with SIGTERM
 	Perturb []string `toml:"perturb"`
 
-	// Log level sets the log level of the specific node i.e. "consensus:info,*:error".
+	// Log level sets the log level of the specific node i.e. "info".
 	// This is helpful when debugging a specific problem. This overrides the network
 	// level.
 	LogLevel string `toml:"log_level"`
 
 	// UseNewP2P enables use of the new p2p layer for this node.
 	DisableLegacyP2P bool `toml:"disable_legacy_p2p"`
-
-	// QueueType describes the type of queue that the p2p layer
-	// uses internally.
-	QueueType string `toml:"queue_type"`
 }
 
 // Save saves the testnet manifest to a file.
